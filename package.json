@@ -1,0 +1,12 @@
+{
+  "name": "redwolf3-skills",
+  "version": "1.0.0",
+  "private": true,
+  "description": "redwolf3's personal agent skills for Claude Code",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/redwolf3/skills"
+  },
+  "license": "MIT",
+  "packageManager": "npm@10.9.4"
+}

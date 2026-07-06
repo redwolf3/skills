@@ -1,0 +1,6 @@
+{
+  "name": "redwolf3-skills",
+  "skills": [
+    "./skills/productivity/hello-world"
+  ]
+}
