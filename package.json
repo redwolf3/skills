@@ -1,12 +1,34 @@
 {
   "name": "redwolf3-skills",
   "version": "1.0.0",
-  "private": true,
   "description": "redwolf3's personal agent skills for Claude Code",
+  "bin": {
+    "redwolf3-skills": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "skills",
+    "docs",
+    "scripts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "echo 'Nothing to build.'",
+    "test": "node --test test/**/*.test.js",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/redwolf3/skills"
+    "url": "git+https://github.com/redwolf3/skills.git"
   },
+  "bugs": {
+    "url": "https://github.com/redwolf3/skills/issues"
+  },
+  "homepage": "https://github.com/redwolf3/skills#readme",
   "license": "MIT",
   "packageManager": "npm@10.9.4"
 }
