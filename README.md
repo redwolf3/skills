@@ -6,6 +6,23 @@ My personal collection of Claude Code and agent skills, optimized for my own wor
 
 These skills build on and complement [Matt Pocock's skills](https://github.com/mattpocock/skills), which I find excellent as-is. My own additions are prefixed with `(redwolf3)` in their descriptions so they're easy to distinguish from others'.
 
+## Install / Run
+
+### Via npx (no install required)
+
+```bash
+npx redwolf3-skills --help
+npx redwolf3-skills --version
+npx redwolf3-skills list
+```
+
+### Global install
+
+```bash
+npm install -g redwolf3-skills
+redwolf3-skills --help
+```
+
 ## Quickstart (30-second setup)
 
 1. Run the skills.sh installer:
@@ -26,6 +43,14 @@ npx skills@latest add redwolf3/skills
 
 ## Local Development
 
+Clone the repo and install dependencies:
+
+```bash
+git clone https://github.com/redwolf3/skills.git
+cd skills
+npm install
+```
+
 To symlink all skills into your local agent harness directories (`~/.claude/skills`, `~/.agents/skills`) so a `git pull` keeps them up to date:
 
 ```bash
@@ -37,6 +62,41 @@ To list every skill in the repo:
 ```bash
 bash scripts/list-skills.sh
 ```
+
+### Running tests
+
+```bash
+npm test
+```
+
+### Building
+
+```bash
+npm run build
+```
+
+## Release process
+
+1. Bump the version:
+
+   ```bash
+   npm version patch   # or minor / major
+   git push --follow-tags
+   ```
+
+2. Create a GitHub Release from the new tag (or the tag push itself triggers publish).
+
+3. The [publish workflow](.github/workflows/publish.yml) runs automatically and publishes to npm using the `NPM_TOKEN` repository secret.
+
+### One-time setup (maintainer)
+
+1. Create an npm automation token at <https://www.npmjs.com/settings/~/tokens>.
+2. Add it as a repository secret named `NPM_TOKEN` in **Settings → Secrets and variables → Actions**.
+3. Verify after the first publish with:
+   ```bash
+   npm view redwolf3-skills
+   npx redwolf3-skills --help
+   ```
 
 ## Reference
 
