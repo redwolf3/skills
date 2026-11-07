@@ -12,4 +12,4 @@ _(No engineering skills yet.)_
 
 Model- or user-reachable.
 
-_(No engineering skills yet.)_
+- **[ai-review-loop](./ai-review-loop/SKILL.md)** — (redwolf3) Run a peer-review loop on a branch before any human reviews it, with one or more AI reviewers (GitHub PR reviewers, or local agents coordinating through .scratch files): triage findings, round cap, merge gate. Only when the user or the project's AGENTS.md/CLAUDE.md calls for it.

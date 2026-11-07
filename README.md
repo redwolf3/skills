@@ -104,6 +104,14 @@ Skills split on one axis — who can invoke them. **User-invoked** skills are re
 
 All skill descriptions in this repo are prefixed with `(redwolf3)` to distinguish them from skills sourced from other repos.
 
+### Engineering
+
+Skills for daily code work.
+
+**Model-invoked**
+
+- **[ai-review-loop](./skills/engineering/ai-review-loop/SKILL.md)** — (redwolf3) Run a peer-review loop on a branch before any human reviews it, with one or more AI reviewers (GitHub PR reviewers, or local agents coordinating through .scratch files): triage findings, round cap, merge gate. Only when the user or the project's AGENTS.md/CLAUDE.md calls for it.
+
 ### Productivity
 
 General workflow tools, not code-specific.
