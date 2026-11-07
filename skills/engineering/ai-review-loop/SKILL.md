@@ -72,7 +72,7 @@ Answer every finding with its disposition and the commit SHA, issue link, or pro
 3. **Triage** every finding (above).
 4. **Deterministic failures.** Reproduce locally, fix, push. Each fix-and-push cycle counts toward the round cap.
 5. **Respond.** Reply on every review thread with the disposition and evidence, then resolve it. Findings without a thread (review body, AI check output) get a single PR comment. Add any attribution footer your tool or the project requires.
-6. **Re-review.** Request a new review only after pushing changes. Maximum 5 rounds per reviewer.
+6. **Re-review.** Request a new review after pushing changes, or after answering every finding with no code change (so the reviewer can confirm the dispositions and refresh its verdict). Not otherwise. Maximum 5 rounds per reviewer.
 7. **Merge gate.** All must hold: every tracked reviewer's latest review, on the head commit, reports no open issues; all required checks are green on the head commit; no code change since those reviews; merge is authorized (below).
 8. **Cleanup.** After merge, stop watching PR events and cancel any scheduled check-ins.
 

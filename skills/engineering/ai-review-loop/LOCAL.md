@@ -39,13 +39,13 @@ peer-review-feedback-<identifier>-<count>-<epoch>-response.md    developer write
    ```
 
    Number every finding `F<n>`. Write `<eom>` last, alone on the final line.
-4. Verdict `needs-closer-look`: stop. Verdict `open-issues`: wait for the answer (`watch wait-response --feedback <path>`), then start the next round (step 1; count increments).
+4. Verdict `needs-closer-look`: stop. Verdict `open-issues`: wait for the answer (`watch wait-response --feedback <path>`), then start the next round (step 1; count increments). If it exits 3 (session done), stop.
 5. Verdict `no-open-issues`: stay available. Loop on `watch wait-head --branch <branch> --since <reviewed-commit> --timeout 300`. If the branch head moves (exit 0), the developer or another reviewer's fixes changed the code, so your clean verdict is stale: start a new round at the new head (step 1). Stop on exit 3 (session done) or when told to; on exit 2 just wait again.
 6. Every round counts toward the cap of 5, clean or not. At round 5 with open issues, or when a stale clean verdict can't be refreshed because you are at the cap, stop and report.
 
 ## Developer procedure
 
-1. Know which reviewers to expect (from the prompt or `AGENTS.md`).
+1. Start the session before any reviewer launches: `watch init` archives a previous session's feedback and done marker into `archive-<epoch>/`, so old counts, verdicts, and the marker don't leak in. Never run it while reviewers are active. Know which reviewers to expect (from the prompt or `AGENTS.md`).
 2. Loop: (a) check the gate and stop conditions (step 7); (b) if not finished, wait for feedback with a bounded wait: `watch pending --wait --timeout 300`; on exit 2 (nothing new) go back to (a). `pending` prints `pending <path>` or `in-progress <path>` (a response you started earlier) for the oldest unanswered complete feedback. Run it in the background if your tool wakes you when a background command exits; otherwise call it in the foreground in a loop (poll). Older incomplete feedback holds back newer feedback (up to `--stale-after`, default 900 s).
 3. Create the response file at once (same name plus `-response`), so reviewers can see it is being worked on. Answer every finding in order, one at a time:
 

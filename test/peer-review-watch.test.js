@@ -152,3 +152,29 @@ test('status: clean verdict at old commit at the cap is reported as cap-reached'
   assert.equal(r.status, 1);
   assert.match(r.stdout, /blocked:cap-reached-stale/);
 });
+
+test('wait-response exits 3 when the session is marked done', opts, () => {
+  const dir = setup();
+  const f = fb(dir, 'a', 1, 1700000100, { response: false });
+  assert.equal(run(dir, 'done').status, 0);
+  const r = run(dir, 'wait-response', '--feedback', f, '--timeout', '2', '--interval', '0.2');
+  assert.equal(r.status, 3);
+});
+
+test('init archives a previous session (feedback and done marker)', opts, () => {
+  const dir = setup();
+  fb(dir, 'a', 3, 1700000100, { verdict: 'no-open-issues', response: true });
+  run(dir, 'done');
+  const r = run(dir, 'init');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /archived=3/);
+  assert.equal(run(dir, 'pending').status, 1);
+  assert.match(run(dir, 'status').stdout, /GATE not-ready/);
+  assert.equal(existsSync(join(dir, 'session-done')), false);
+  assert.match(run(dir, 'next', '--id', 'a').stdout.trim(), /-a-01-\d{10}\.md$/); // counts restart
+});
+
+test('--branch is accepted after the subcommand', opts, () => {
+  const r = spawnSync('python3', [SCRIPT, '--dir', setup(), 'wait-head', '--branch', 'nope', '--since', 'abc1234', '--timeout', '1'], { encoding: 'utf8' });
+  assert.doesNotMatch(r.stderr, /unrecognized arguments/);
+});

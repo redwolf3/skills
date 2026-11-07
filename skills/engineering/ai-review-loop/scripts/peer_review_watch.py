@@ -6,7 +6,7 @@ Files live in <main-worktree>/.scratch/peer-review/<branch-slug>/ :
   peer-review-feedback-<id>-<count>-<epoch>-response.md    (developer writes)
 A file is complete when its last non-blank line is exactly <eom>.
 
-Subcommands: dir | next | pending | wait-response | wait-head | done | status  (see --help).
+Subcommands: dir | init | next | pending | wait-response | wait-head | done | status  (see --help).
 """
 import argparse
 import re
@@ -133,6 +133,18 @@ def branch_head(a):
     return sha
 
 
+def cmd_init(a):
+    d = resolve_dir(a)
+    d.mkdir(parents=True, exist_ok=True)
+    old = [p for p in d.iterdir() if p.is_file() and (NAME.match(p.name) or p.name == DONE)]
+    if old:
+        arch = d / f"archive-{int(time.time())}"
+        arch.mkdir(exist_ok=True)
+        for p in old:
+            p.rename(arch / p.name)
+    print(f"{d}\tarchived={len(old)}")
+
+
 def cmd_done(a):
     d = resolve_dir(a)
     d.mkdir(parents=True, exist_ok=True)
@@ -185,9 +197,18 @@ def cmd_wait_response(a):
     if not m or m["resp"]:
         sys.exit("error: --feedback must be a feedback file (not a response)")
     resp = fb.with_name(fb.stem + "-response.md")
-    r = poll(lambda: resp if complete(resp) else None, True, a.timeout, a.interval)
+    d = resolve_dir(a)
+
+    def ready():
+        if complete(resp):
+            return resp
+        return "done" if (d / DONE).exists() else None
+
+    r = poll(ready, True, a.timeout, a.interval)
     if r is None:
         sys.exit(2)
+    if r == "done":
+        sys.exit(3)
     print(r)
 
 
@@ -228,32 +249,37 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dir", help="exchange folder (default: .scratch/peer-review/<branch-slug>)")
     p.add_argument("--branch", help="branch name (default: current branch)")
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--dir", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    common.add_argument("--branch", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("dir", help="print the exchange folder").set_defaults(f=cmd_dir)
-    s = sub.add_parser("next", help="reviewer: claim the next feedback file name and print its path")
+    sub.add_parser("dir", parents=[common], help="print the exchange folder").set_defaults(f=cmd_dir)
+    s = sub.add_parser("next", parents=[common], help="reviewer: claim the next feedback file name and print its path")
     s.add_argument("--id", required=True)
     s.set_defaults(f=cmd_next)
-    s = sub.add_parser("pending", help="developer: oldest complete, unanswered feedback ('<state>\\t<path>')")
+    s = sub.add_parser("pending", parents=[common], help="developer: oldest complete, unanswered feedback ('<state>\\t<path>')")
     s.add_argument("--wait", action="store_true", help="poll until one exists (exit 2 on timeout)")
     s.add_argument("--timeout", type=int, default=0, help="seconds; 0 = forever")
     s.add_argument("--interval", type=float, default=5)
     s.add_argument("--stale-after", type=int, default=900,
                    help="seconds before an unfinished older file stops blocking newer ones")
     s.set_defaults(f=cmd_pending)
-    s = sub.add_parser("wait-response", help="reviewer: block until the response to --feedback is complete")
+    s = sub.add_parser("wait-response", parents=[common], help="reviewer: block until the response to --feedback is complete")
     s.add_argument("--feedback", required=True)
     s.add_argument("--timeout", type=int, default=0)
     s.add_argument("--interval", type=float, default=5)
     s.set_defaults(f=cmd_wait_response)
-    s = sub.add_parser("done", help="developer: mark the session finished so waiting reviewers stop")
+    s = sub.add_parser("init", parents=[common], help="developer: start a session; archive any previous session's files and done marker")
+    s.set_defaults(f=cmd_init)
+    s = sub.add_parser("done", parents=[common], help="developer: mark the session finished so waiting reviewers stop")
     s.set_defaults(f=cmd_done)
-    s = sub.add_parser("wait-head", help="reviewer: block until the branch head differs from --since "
+    s = sub.add_parser("wait-head", parents=[common], help="reviewer: block until the branch head differs from --since "
                                        "(exit 0 prints new head, 2 timeout, 3 session done)")
     s.add_argument("--since", required=True, help="sha the last review used")
     s.add_argument("--timeout", type=int, default=0)
     s.add_argument("--interval", type=float, default=5)
     s.set_defaults(f=cmd_wait_head)
-    s = sub.add_parser("status", help="per-reviewer state and merge-gate readiness (exit 0 = ready)")
+    s = sub.add_parser("status", parents=[common], help="per-reviewer state and merge-gate readiness (exit 0 = ready)")
     s.add_argument("--head", help="current HEAD sha; clean verdicts must be at this commit")
     s.add_argument("--expect", help="comma-separated reviewer ids that must have reported")
     s.add_argument("--max-rounds", type=int, default=5)
