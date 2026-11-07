@@ -105,11 +105,11 @@ test('status flags open issues, cap, and in-progress reviews', opts, () => {
   const dir = setup();
   fb(dir, 'a', 5, 1700000100, { response: true });
   fb(dir, 'b', 1, 1700000200, { eom: false });
-  const r = run(dir, 'status');
+  const r = run(dir, 'status', '--head', 'abc1234');
   assert.equal(r.status, 1);
   assert.match(r.stdout, /blocked:cap-reached/);
   assert.match(r.stdout, /blocked:review-in-progress/);
-  assert.equal(run(setup(), 'status').status, 1); // no reviewers => not ready
+  assert.equal(run(setup(), 'status', '--head', 'abc1234').status, 1); // no reviewers => not ready
 });
 
 test('partial UTF-8 write is treated as incomplete, not a crash', opts, () => {
