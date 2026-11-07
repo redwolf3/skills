@@ -9,6 +9,7 @@ A file is complete when its last non-blank line is exactly <eom>.
 Subcommands: dir | init | next | pending | wait-response | wait-head | done | status  (see --help).
 """
 import argparse
+import hashlib
 import re
 import subprocess
 import sys
@@ -37,7 +38,8 @@ def resolve_dir(a):
         sys.exit("error: cannot determine branch; pass --branch or --dir")
     common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
     root = Path(common).parent if common else Path.cwd()
-    slug = re.sub(r"[^A-Za-z0-9._-]+", "__", branch)
+    # readable prefix + digest of the exact name, so "a/b" and "a__b" never share a folder
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "__", branch) + "-" + hashlib.sha1(branch.encode()).hexdigest()[:8]
     return root / ".scratch" / "peer-review" / slug
 
 
@@ -84,15 +86,20 @@ def state(e):
 
 
 def header(p):
+    """Leading metadata block only (up to the first blank line); first occurrence wins."""
     h = {}
     try:
         text = p.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return h
-    for line in text.splitlines()[:20]:
+    for line in text.splitlines():
+        if not line.strip():
+            if h:
+                break
+            continue
         m = re.match(r"^(Verdict|Reviewed-commit):\s*(\S+)", line, re.I)
         if m:
-            h[m[1].lower()] = m[2].lower()
+            h.setdefault(m[1].lower(), m[2].lower())
     return h
 
 
@@ -125,9 +132,13 @@ def cmd_next(a):
     print(p)
 
 
+def resolve_head(a):
+    branch = getattr(a, "branch", None) or git("rev-parse", "--abbrev-ref", "HEAD")
+    return git("rev-parse", branch) if branch and branch != "HEAD" else ""
+
+
 def branch_head(a):
-    branch = a.branch or git("rev-parse", "--abbrev-ref", "HEAD")
-    sha = git("rev-parse", branch) if branch else ""
+    sha = resolve_head(a)
     if not sha:
         sys.exit("error: cannot resolve branch head; pass --branch")
     return sha
@@ -197,12 +208,12 @@ def cmd_wait_response(a):
     if not m or m["resp"]:
         sys.exit("error: --feedback must be a feedback file (not a response)")
     resp = fb.with_name(fb.stem + "-response.md")
-    d = resolve_dir(a)
+    d = fb.resolve().parent  # the session folder is wherever the feedback lives
 
     def ready():
-        if complete(resp):
-            return resp
-        return "done" if (d / DONE).exists() else None
+        if (d / DONE).exists():
+            return "done"
+        return resp if complete(resp) else None
 
     r = poll(ready, True, a.timeout, a.interval)
     if r is None:
@@ -214,6 +225,11 @@ def cmd_wait_response(a):
 
 def cmd_status(a):
     d = resolve_dir(a)
+    head = (a.head or resolve_head(a)).lower()
+    if not head:
+        print("error: cannot determine the current head; pass --head <sha> or --branch", file=sys.stderr)
+        print("GATE not-ready")
+        sys.exit(1)
     latest = {}
     for e in feedbacks(d):
         cur = latest.get(e.id)
@@ -235,7 +251,7 @@ def cmd_status(a):
             why = "review-in-progress"
         elif verdict != "no-open-issues":
             why = "cap-reached" if e.count >= a.max_rounds else verdict
-        elif a.head and not (commit.startswith(a.head.lower()) or a.head.lower().startswith(commit)):
+        elif not (commit.startswith(head) or head.startswith(commit)):
             why = "cap-reached-stale" if e.count >= a.max_rounds else "stale-commit"
         ok = not why
         ready &= ok
@@ -280,7 +296,7 @@ def main():
     s.add_argument("--interval", type=float, default=5)
     s.set_defaults(f=cmd_wait_head)
     s = sub.add_parser("status", parents=[common], help="per-reviewer state and merge-gate readiness (exit 0 = ready)")
-    s.add_argument("--head", help="current HEAD sha; clean verdicts must be at this commit")
+    s.add_argument("--head", help="current head sha (default: head of the branch); clean verdicts must be at this commit")
     s.add_argument("--expect", help="comma-separated reviewer ids that must have reported")
     s.add_argument("--max-rounds", type=int, default=5)
     s.set_defaults(f=cmd_status)

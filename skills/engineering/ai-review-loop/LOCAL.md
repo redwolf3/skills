@@ -6,7 +6,7 @@ Helper: `scripts/peer_review_watch.py` (Python 3, stdlib only), in this skill's 
 
 ## Folder and files
 
-Exchange folder: `<main-worktree>/.scratch/peer-review/<branch-slug>/` (`watch dir` prints it; branch characters outside `A-Za-z0-9._-` become `__`). It resolves to the main worktree, so a reviewer in a separate git worktree uses the same folder. Make sure `.scratch/` is git-ignored (add it to `.git/info/exclude` if the repo does not). Never commit it.
+Exchange folder: `<main-worktree>/.scratch/peer-review/<branch-slug>/` (`watch dir` prints it; characters outside `A-Za-z0-9._-` become `__`, and a short digest of the exact branch name is appended so `a/b` and `a__b` never collide). It resolves to the main worktree, so a reviewer in a separate git worktree uses the same folder. Make sure `.scratch/` is git-ignored (add it to `.git/info/exclude` if the repo does not). Never commit it.
 
 ```
 peer-review-feedback-<identifier>-<count>-<epoch>.md             reviewer writes
@@ -58,7 +58,7 @@ peer-review-feedback-<identifier>-<count>-<epoch>-response.md    developer write
 4. Before working on feedback newer than another reviewer's, check each finding against the current head. Cite the earlier commit for ones already fixed or duplicated (`already-addressed`).
 5. Triage and fix as in SKILL.md: tests that fail without the fix, small commits, project checks before each commit.
 6. When every finding is answered, write `<eom>` alone on the last line of the response file. Then return to step 2. After your commits move HEAD, reviewers whose clean verdicts are now stale re-review on their own (see reviewer step 5); `status` shows them as `blocked:stale-commit` until they do.
-7. Check the gate: `watch status --head "$(git rev-parse HEAD)" --expect <ids>`. Exit 0 means every expected reviewer's latest feedback is clean at HEAD, so stop and report. Stop and report too if a reviewer hits the cap (`cap-reached`, `cap-reached-stale`), gives `needs-closer-look`, or an expected reviewer never reports within the time the owner allows. When finished (either way), run `watch done` so waiting reviewers exit, then report.
+7. Check the gate: `watch status --head "$(git rev-parse HEAD)" --expect <ids>` (without `--head` it uses the branch head and refuses if it can't resolve one). Exit 0 means every expected reviewer's latest feedback is clean at HEAD, so stop and report. Stop and report too if a reviewer hits the cap (`cap-reached`, `cap-reached-stale`), gives `needs-closer-look`, or an expected reviewer never reports within the time the owner allows. When finished (either way), run `watch done` so waiting reviewers exit, then report.
 
 ## Notes
 

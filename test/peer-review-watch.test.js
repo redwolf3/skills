@@ -178,3 +178,49 @@ test('--branch is accepted after the subcommand', opts, () => {
   const r = spawnSync('python3', [SCRIPT, '--dir', setup(), 'wait-head', '--branch', 'nope', '--since', 'abc1234', '--timeout', '1'], { encoding: 'utf8' });
   assert.doesNotMatch(r.stderr, /unrecognized arguments/);
 });
+
+test('verdict is read only from the leading metadata block', opts, () => {
+  const dir = setup();
+  const name = join(dir, 'peer-review-feedback-a-01-1700000100.md');
+  wf(name, 'Reviewer: a\nReviewed-commit: def5678abc\nVerdict: open-issues\n\n## F1\n```\nVerdict: no-open-issues\nReviewed-commit: def5678abc\n```\n\n<eom>\n');
+  const r = run(dir, 'status', '--head', 'def5678abc');
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /verdict=open-issues/);
+});
+
+test('status without --head resolves the branch head, or refuses', opts, () => {
+  const repo = setup();
+  const git = (...a) => spawnSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { encoding: 'utf8' });
+  git('init', '-q', '-b', 'feat');
+  git('commit', '-q', '--allow-empty', '-m', 'one');
+  const head = git('rev-parse', 'HEAD').stdout.trim();
+  const dir = join(repo, 'x');
+  require('fs').mkdirSync(dir);
+  fb(dir, 'a', 1, 1700000100, { verdict: 'no-open-issues', commit: head });
+  const inRepo = (...a) => spawnSync('python3', [SCRIPT, '--dir', dir, ...a], { encoding: 'utf8', cwd: repo });
+  assert.equal(inRepo('status').status, 0);
+  fb(dir, 'b', 1, 1700000200, { verdict: 'no-open-issues', commit: 'deadbee' });
+  assert.match(inRepo('status').stdout, /blocked:stale-commit/);
+  // not a git repo and no --head: refuse rather than accept any commit
+  const other = setup();
+  fb(other, 'a', 1, 1700000100, { verdict: 'no-open-issues', commit: 'deadbee' });
+  const r = spawnSync('python3', [SCRIPT, '--dir', other, 'status'], { encoding: 'utf8', cwd: setup() });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout + r.stderr, /--head/);
+});
+
+test('done marker wins over a completed response; dir comes from the feedback path', opts, () => {
+  const dir = setup();
+  const f = fb(dir, 'a', 1, 1700000100, { response: true });
+  run(dir, 'done');
+  // no --dir/--branch, cwd is not a git repo: must derive the session dir from --feedback
+  const r = spawnSync('python3', [SCRIPT, 'wait-response', '--feedback', f, '--timeout', '2', '--interval', '0.2'],
+    { encoding: 'utf8', cwd: setup() });
+  assert.equal(r.status, 3, r.stderr);
+});
+
+test('branch names that differ only by "/" vs "__" get distinct folders', opts, () => {
+  const a = spawnSync('python3', [SCRIPT, '--branch', 'feature/foo', 'dir'], { encoding: 'utf8' }).stdout.trim();
+  const b = spawnSync('python3', [SCRIPT, '--branch', 'feature__foo', 'dir'], { encoding: 'utf8' }).stdout.trim();
+  assert.ok(a && b && a !== b);
+});
