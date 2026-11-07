@@ -1,6 +1,6 @@
 ---
 name: ai-review-loop
-description: (redwolf3) Run a peer-review loop on a branch before any human reviews it, with one or more AI reviewers (GitHub PR reviewers, or local agents coordinating through .scratch files): triage findings, round cap, merge gate. Only when the user or the project's AGENTS.md/CLAUDE.md calls for it.
+description: "(redwolf3) Run a peer-review loop on a branch before any human reviews it, with one or more AI reviewers (GitHub PR reviewers, or local agents coordinating through .scratch files): triage findings, round cap, merge gate. Only when the user or the project's AGENTS.md/CLAUDE.md calls for it."
 ---
 
 # AI review loop

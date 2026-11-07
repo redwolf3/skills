@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('child_process');
 const { join } = require('path');
 const { mkdtempSync, writeFileSync, existsSync } = require('fs');
+const { writeFileSync: wf } = require('fs');
 const { tmpdir } = require('os');
 
 const SCRIPT = join(__dirname, '..', 'skills', 'engineering', 'ai-review-loop', 'scripts', 'peer_review_watch.py');
@@ -109,4 +110,45 @@ test('status flags open issues, cap, and in-progress reviews', opts, () => {
   assert.match(r.stdout, /blocked:cap-reached/);
   assert.match(r.stdout, /blocked:review-in-progress/);
   assert.equal(run(setup(), 'status').status, 1); // no reviewers => not ready
+});
+
+test('partial UTF-8 write is treated as incomplete, not a crash', opts, () => {
+  const dir = setup();
+  const name = join(dir, 'peer-review-feedback-a-01-1700000100.md');
+  // "caf" + first byte of a 2-byte character, no <eom>
+  wf(name, Buffer.concat([Buffer.from('Verdict: open-issues\n\ncaf'), Buffer.from([0xc3])]));
+  const r = run(dir, 'pending');
+  assert.equal(r.status, 1, r.stderr);
+  assert.doesNotMatch(r.stderr, /Traceback/);
+  wf(name, 'Verdict: open-issues\n\ncaf\u00e9\n\n<eom>\n');
+  assert.equal(run(dir, 'pending').status, 0);
+});
+
+test('wait-head returns the new head once the branch moves; done ends the wait', opts, () => {
+  const repo = setup();
+  const git = (...a) => spawnSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { encoding: 'utf8' });
+  git('init', '-q', '-b', 'feat');
+  git('commit', '-q', '--allow-empty', '-m', 'one');
+  const one = git('rev-parse', 'HEAD').stdout.trim();
+  const dir = join(repo, 'x');
+  require('fs').mkdirSync(dir);
+  const wait = () => run(dir, '--branch', 'feat', 'wait-head', '--since', one, '--timeout', '1', '--interval', '0.2');
+  const cwdRun = (...a) => spawnSync('python3', [SCRIPT, '--dir', dir, '--branch', 'feat', ...a], { encoding: 'utf8', cwd: repo });
+  assert.equal(cwdRun('wait-head', '--since', one, '--timeout', '1', '--interval', '0.2').status, 2);
+  git('commit', '-q', '--allow-empty', '-m', 'two');
+  const two = git('rev-parse', 'HEAD').stdout.trim();
+  const moved = cwdRun('wait-head', '--since', one, '--timeout', '2', '--interval', '0.2');
+  assert.equal(moved.status, 0);
+  assert.equal(moved.stdout.trim(), two);
+  assert.equal(cwdRun('done').status, 0);
+  assert.equal(cwdRun('wait-head', '--since', two, '--timeout', '2', '--interval', '0.2').status, 3);
+  void wait;
+});
+
+test('status: clean verdict at old commit at the cap is reported as cap-reached', opts, () => {
+  const dir = setup();
+  fb(dir, 'a', 5, 1700000100, { verdict: 'no-open-issues', commit: 'aaaaaaa' });
+  const r = run(dir, 'status', '--head', 'bbbbbbb');
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /blocked:cap-reached-stale/);
 });

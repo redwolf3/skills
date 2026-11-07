@@ -6,7 +6,7 @@ Files live in <main-worktree>/.scratch/peer-review/<branch-slug>/ :
   peer-review-feedback-<id>-<count>-<epoch>-response.md    (developer writes)
 A file is complete when its last non-blank line is exactly <eom>.
 
-Subcommands: dir | next | pending | wait-response | status  (see --help).
+Subcommands: dir | next | pending | wait-response | wait-head | done | status  (see --help).
 """
 import argparse
 import re
@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 EOM = "<eom>"
+DONE = "session-done"
 NAME = re.compile(
     r"^peer-review-feedback-(?P<id>[a-z0-9][a-z0-9-]*)-(?P<count>\d{2})-(?P<epoch>\d{10})"
     r"(?P<resp>-response)?\.md$"
@@ -68,8 +69,8 @@ def feedbacks(d):
 
 def complete(p):
     try:
-        lines = [l.strip() for l in p.read_text().splitlines() if l.strip()]
-    except OSError:
+        lines = [l.strip() for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except (OSError, UnicodeDecodeError):  # unreadable or mid-character write: not final yet
         return False
     return bool(lines) and lines[-1] == EOM
 
@@ -84,7 +85,11 @@ def state(e):
 
 def header(p):
     h = {}
-    for line in p.read_text().splitlines()[:20]:
+    try:
+        text = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return h
+    for line in text.splitlines()[:20]:
         m = re.match(r"^(Verdict|Reviewed-commit):\s*(\S+)", line, re.I)
         if m:
             h[m[1].lower()] = m[2].lower()
@@ -118,6 +123,38 @@ def cmd_next(a):
     with open(p, "x"):  # claim the name; empty file = "writing"
         pass
     print(p)
+
+
+def branch_head(a):
+    branch = a.branch or git("rev-parse", "--abbrev-ref", "HEAD")
+    sha = git("rev-parse", branch) if branch else ""
+    if not sha:
+        sys.exit("error: cannot resolve branch head; pass --branch")
+    return sha
+
+
+def cmd_done(a):
+    d = resolve_dir(a)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / DONE).write_text("session finished\n", encoding="utf-8")
+    print(d / DONE)
+
+
+def cmd_wait_head(a):
+    d = resolve_dir(a)
+
+    def changed():
+        if (d / DONE).exists():
+            return "done"
+        sha = branch_head(a)
+        return sha if not (sha.startswith(a.since) or a.since.startswith(sha)) else None
+
+    r = poll(changed, True, a.timeout, a.interval)
+    if r is None:
+        sys.exit(2)
+    if r == "done":
+        sys.exit(3)
+    print(r)
 
 
 def find_pending(d, stale_after):
@@ -178,7 +215,7 @@ def cmd_status(a):
         elif verdict != "no-open-issues":
             why = "cap-reached" if e.count >= a.max_rounds else verdict
         elif a.head and not (commit.startswith(a.head.lower()) or a.head.lower().startswith(commit)):
-            why = "stale-commit"
+            why = "cap-reached-stale" if e.count >= a.max_rounds else "stale-commit"
         ok = not why
         ready &= ok
         print(f"{i}\tround={e.count:02d}/{a.max_rounds:02d}\t{st}\tverdict={verdict}\tcommit={commit}\t"
@@ -208,6 +245,14 @@ def main():
     s.add_argument("--timeout", type=int, default=0)
     s.add_argument("--interval", type=float, default=5)
     s.set_defaults(f=cmd_wait_response)
+    s = sub.add_parser("done", help="developer: mark the session finished so waiting reviewers stop")
+    s.set_defaults(f=cmd_done)
+    s = sub.add_parser("wait-head", help="reviewer: block until the branch head differs from --since "
+                                       "(exit 0 prints new head, 2 timeout, 3 session done)")
+    s.add_argument("--since", required=True, help="sha the last review used")
+    s.add_argument("--timeout", type=int, default=0)
+    s.add_argument("--interval", type=float, default=5)
+    s.set_defaults(f=cmd_wait_head)
     s = sub.add_parser("status", help="per-reviewer state and merge-gate readiness (exit 0 = ready)")
     s.add_argument("--head", help="current HEAD sha; clean verdicts must be at this commit")
     s.add_argument("--expect", help="comma-separated reviewer ids that must have reported")
