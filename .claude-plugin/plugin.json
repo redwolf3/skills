@@ -1,6 +1,7 @@
 {
   "name": "redwolf3-skills",
   "skills": [
+    "./skills/engineering/ai-review-loop",
     "./skills/productivity/hello-world"
   ]
 }
